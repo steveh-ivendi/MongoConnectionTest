@@ -40,6 +40,8 @@ namespace PollyRetry.ConsoleApp
                 Log.Logger.Error(e, "Failed to get collection");
             }
         }
+
+        // Adapted from https://stackoverflow.com/a/47777725/747649
         private static async Task<bool> ProbeForMongoDbConnection(MongoClient mongoClient, string dbName, int retryCount = 6, int waitMilliseconds = 1666)
         {
             var isAlive = false;
