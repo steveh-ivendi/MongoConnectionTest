@@ -17,10 +17,11 @@ namespace PollyRetry.ConsoleApp
             {
                 Log.Logger.Debug("Starting to get collection");
 
-                var mongoUrl = MongoUrl.Create("mongodb://127.0.0.1:27017/quoteware-bc-local");
+                // var mongoUrl = MongoUrl.Create("mongodb://127.0.0.1:27017/quoteware-bc-local");
+                var mongoUrl = MongoUrl.Create("mongodb://127.0.0.1:27017/my-test-database");
                 var mongoClient = new MongoClient(mongoUrl);
 
-                if(await ProbeForMongoDbConnection(mongoClient, mongoUrl.DatabaseName, 60, 500))
+                if(await ProbeForMongoDbConnection(mongoClient, mongoUrl.DatabaseName, 60, 5000))
                 {
                     var mongoDatabase = mongoClient.GetDatabase(mongoUrl.DatabaseName);
                     var collection = mongoDatabase.GetCollection<ProductRateReadModel>("ProductRateReadModel");
