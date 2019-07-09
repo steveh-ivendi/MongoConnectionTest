@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MongoDB.Driver;
+using Polly;
+using Polly.Timeout;
 using Serilog;
 
 namespace PollyRetry.ConsoleApp
@@ -13,26 +15,43 @@ namespace PollyRetry.ConsoleApp
         {
             Log.Logger = new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Console().CreateLogger();
 
+            var timeoutPolicy = Policy.TimeoutAsync(30, TimeoutStrategy.Pessimistic);
+
             try
             {
                 Log.Logger.Debug("Starting to get collection");
 
-                // var mongoUrl = MongoUrl.Create("mongodb://127.0.0.1:27017/quoteware-bc-local");
-                var mongoUrl = MongoUrl.Create("mongodb://127.0.0.1:27017/my-test-database");
+                var mongoUrl = MongoUrl.Create("mongodb://127.0.0.1:27017/quoteware-bc-local");
+                //var mongoUrl = MongoUrl.Create("mongodb://127.0.0.1:27017/my-test-database");
                 var mongoClient = new MongoClient(mongoUrl);
 
-                if(await ProbeForMongoDbConnection(mongoClient, mongoUrl.DatabaseName, 60, 5000))
-                {
-                    var mongoDatabase = mongoClient.GetDatabase(mongoUrl.DatabaseName);
-                    var collection = mongoDatabase.GetCollection<ProductRateReadModel>("ProductRateReadModel");
+                var result = await timeoutPolicy.ExecuteAndCaptureAsync(async () => {
+                    if(await ProbeForMongoDbConnection(mongoClient, mongoUrl.DatabaseName, 60, 5000))
+                    {
+                        var mongoDatabase = mongoClient.GetDatabase(mongoUrl.DatabaseName);
+                        var collection = mongoDatabase.GetCollection<ProductRateReadModel>("ProductRateReadModel");
 
-                    Log.Logger.Information(collection.EstimatedDocumentCount() < 1 ? 
-                        "Collection is empty" : 
-                        $"Collection has an estimated {collection.EstimatedDocumentCount()} documents");
+                        Log.Logger.Information(collection.EstimatedDocumentCount() < 1 ? 
+                            "Collection is empty" : 
+                            $"Collection has an estimated {collection.EstimatedDocumentCount()} documents");
+
+                        return collection.EstimatedDocumentCount();
+                    }
+                    else
+                    {
+                        Log.Logger.Warning("Connection to database is not working");
+
+                        return long.MinValue;
+                    }
+                });
+
+                if(result.Outcome == OutcomeType.Failure)
+                {
+                    Log.Logger.Error($"ExceptionType: {result.ExceptionType}; FaultType: {result.FaultType}; FinalException: {result.FinalException}");
                 }
                 else
                 {
-                    Log.Logger.Warning("Connection to database is not working");
+                    Log.Logger.Information($"Got the value {result.Result}");
                 }
             }
             catch (Exception e)
